@@ -1,0 +1,850 @@
+{
+  "name": "Resume Generator",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-800, 400],
+      "id": "manual-trigger-1",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1S5i0OIJxXrMBAziWqiSiy3lyAwgzh_aKlydnrciwUuQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Relevant Roles",
+          "mode": "name"
+        },
+        "options": {
+          "returnAllMatches": {
+            "returnAllMatches": "returnFirstMatch"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [-560, 400],
+      "id": "get-first-job-1",
+      "name": "Get First Job",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-has-job",
+              "leftValue": "={{ $json.Title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-320, 400],
+      "id": "has-job-check-1",
+      "name": "Has Job?"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "documentURL": {
+          "__rl": true,
+          "value": "1nkYGAspSoYA3lb3lStGdYVkKd7CRFt53OewhOuazADc",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [-80, 200],
+      "id": "get-master-resume-1",
+      "name": "Get Master Resume",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "documentURL": {
+          "__rl": true,
+          "value": "1KMaK8-Wqud1INyw_VHs3XS0TdO4kX-sX5q8_ZUPKvy8",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [-80, 400],
+      "id": "get-prompt-instructions-1",
+      "name": "Get Prompt Instructions",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "1pSd0QVcsNy1bfZTe6mvb13YIzpEnOo4E_fpPk7H9SuU",
+          "mode": "id"
+        },
+        "name": "=Jeppe Christensen Resume - {{ $('Get First Job').item.json.Company }} - {{ $('Get First Job').item.json.Title }} - {{ DateTime.now().toFormat('yyyy-MM-dd') }}",
+        "sameFolder": false,
+        "folderId": {
+          "__rl": true,
+          "value": "1dwuaby-TFvpd_8PrEJ_1WNAvM8wz1tA5",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [-80, 600],
+      "id": "copy-template-1",
+      "name": "Copy Resume Template",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [160, 400],
+      "id": "merge-all-data-1",
+      "name": "Merge All Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine all inputs into a single object for Claude\nconst job = $('Get First Job').item.json;\nconst masterResumeDoc = $('Get Master Resume').item.json;\nconst promptInstructionsDoc = $('Get Prompt Instructions').item.json;\nconst copiedDoc = $('Copy Resume Template').item.json;\n\n// Extract text content from Google Docs response\n// Google Docs node returns document structure, we need to extract plain text\nfunction extractTextFromDoc(doc) {\n  if (!doc || !doc.body || !doc.body.content) {\n    return JSON.stringify(doc);\n  }\n  let text = '';\n  for (const element of doc.body.content) {\n    if (element.paragraph && element.paragraph.elements) {\n      for (const elem of element.paragraph.elements) {\n        if (elem.textRun && elem.textRun.content) {\n          text += elem.textRun.content;\n        }\n      }\n    }\n  }\n  return text;\n}\n\nconst masterResume = extractTextFromDoc(masterResumeDoc);\nconst promptInstructions = extractTextFromDoc(promptInstructionsDoc);\n\nreturn [{\n  json: {\n    job: {\n      title: job.Title || '',\n      company: job.Company || '',\n      description: job.Description || '',\n      url: job.URL || '',\n      dateAdded: job['Date Added'] || ''\n    },\n    masterResume,\n    promptInstructions,\n    copiedDocId: copiedDoc.id,\n    copiedDocName: copiedDoc.name\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 400],
+      "id": "prepare-claude-input-1",
+      "name": "Prepare Claude Input"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=## JOB DESCRIPTION\nTitle: {{ $json.job.title }}\nCompany: {{ $json.job.company }}\n\n{{ $json.job.description }}\n\n---\n\n## MASTER RESUME\n{{ $json.masterResume }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "={{ $json.promptInstructions }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [640, 400],
+      "id": "generate-content-claude-1",
+      "name": "Generate Resume Content"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {
+          "maxTokensToSample": 4096
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [720, 620],
+      "id": "claude-sonnet-model-1",
+      "name": "Claude Sonnet",
+      "credentials": {
+        "anthropicApi": {
+          "id": "1dEHV2ZcyiXT2OLc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude's JSON response and prepare for Google Docs replacement\nconst input = $('Prepare Claude Input').item.json;\nconst claudeResponse = $json.text || $json.response || '';\n\n// Extract JSON from Claude's response\nlet content;\ntry {\n  // Try to parse directly\n  content = JSON.parse(claudeResponse);\n} catch (e) {\n  // Try to extract JSON from markdown code block\n  const jsonMatch = claudeResponse.match(/```json\\n?([\\s\\S]*?)\\n?```/) || \n                    claudeResponse.match(/```\\n?([\\s\\S]*?)\\n?```/) ||\n                    claudeResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    content = JSON.parse(jsonMatch[1] || jsonMatch[0]);\n  } else {\n    throw new Error('Could not parse JSON from Claude response');\n  }\n}\n\n// Build the replacement requests for Google Docs API\nconst replacements = [];\nconst placeholders = [\n  'TAGLINE_1', 'TAGLINE_2', 'TAGLINE_3', 'ABOUT_ME',\n  'SHOPIFY_BULLET_1', 'SHOPIFY_BULLET_2',\n  'NEO4J_BULLET_1', 'NEO4J_BULLET_2', 'NEO4J_BULLET_3', 'NEO4J_BULLET_4', 'NEO4J_BULLET_5',\n  'FIVETRAN_BULLET_1', 'FIVETRAN_BULLET_2', 'FIVETRAN_BULLET_3', 'FIVETRAN_BULLET_4', 'FIVETRAN_BULLET_5',\n  'DENTSU_BULLET_1', 'DENTSU_BULLET_2', 'DENTSU_BULLET_3',\n  'TEXT100_BULLET_1', 'TEXT100_BULLET_2', 'TEXT100_BULLET_3',\n  'REPUBLIC_BULLET_1', 'REPUBLIC_BULLET_2',\n  'COMPETENCY_1', 'COMPETENCY_2', 'COMPETENCY_3', 'COMPETENCY_4', 'COMPETENCY_5',\n  'COMPETENCY_6', 'COMPETENCY_7', 'COMPETENCY_8', 'COMPETENCY_9', 'COMPETENCY_10'\n];\n\nfor (const key of placeholders) {\n  if (content[key]) {\n    replacements.push({\n      replaceAllText: {\n        containsText: {\n          text: '{{' + key + '}}',\n          matchCase: true\n        },\n        replaceText: content[key]\n      }\n    });\n  }\n}\n\nreturn [{\n  json: {\n    documentId: input.copiedDocId,\n    documentName: input.copiedDocName,\n    job: input.job,\n    generatedContent: content,\n    requests: replacements\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400],
+      "id": "parse-claude-response-1",
+      "name": "Parse Claude Response"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": {
+          "__rl": true,
+          "value": "={{ $json.documentId }}",
+          "mode": "id"
+        },
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "replaceAll",
+              "matchCase": true,
+              "text": "={{$json.requests}}",
+              "replaceText": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [1120, 400],
+      "id": "update-doc-placeholders-1",
+      "name": "Update Doc (Replace Placeholders)",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "NOTE: This node may need manual configuration in n8n. The Google Docs Update operation uses a batchUpdate API. You may need to use HTTP Request node for complex replacements."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data for Google Chat notification\nconst parsed = $('Parse Claude Response').item.json;\nconst docUrl = `https://docs.google.com/document/d/${parsed.documentId}/edit`;\n\nreturn [{\n  json: {\n    documentId: parsed.documentId,\n    documentName: parsed.documentName,\n    documentUrl: docUrl,\n    job: parsed.job,\n    message: `*New Resume Draft Ready for Review*\\n\\n` +\n             `*Role:* ${parsed.job.title}\\n` +\n             `*Company:* ${parsed.job.company}\\n\\n` +\n             `*Review the draft:* ${docUrl}\\n\\n` +\n             `Reply with \"approve\" or \"reject\" to continue.`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 400],
+      "id": "prepare-chat-message-1",
+      "name": "Prepare Chat Message"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendAndWait",
+        "spaceId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "message": "={{ $json.message }}",
+        "responseType": "approval",
+        "approvalOptions": {
+          "values": {
+            "approveLabel": "Approve Resume",
+            "disapproveLabel": "Reject Resume"
+          }
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.googleChat",
+      "typeVersion": 1,
+      "position": [1600, 400],
+      "id": "send-google-chat-1",
+      "name": "Send Review Request",
+      "credentials": {
+        "googleChatOAuth2Api": {
+          "id": "",
+          "name": ""
+        }
+      },
+      "notes": "SETUP REQUIRED: Select your Google Chat space from the dropdown. You'll need Google Chat credentials configured in n8n."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition-approved",
+              "leftValue": "={{ $json.response?.status || $json.approved }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1840, 400],
+      "id": "check-approval-1",
+      "name": "Approved?"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "1S5i0OIJxXrMBAziWqiSiy3lyAwgzh_aKlydnrciwUuQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Relevant Roles",
+          "mode": "name"
+        },
+        "filters": {
+          "values": [
+            {
+              "lookupColumn": "URL",
+              "lookupValue": "={{ $('Get First Job').item.json.URL }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2080, 300],
+      "id": "delete-from-relevant-1",
+      "name": "Delete from Relevant",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1S5i0OIJxXrMBAziWqiSiy3lyAwgzh_aKlydnrciwUuQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Processed Jobs",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date Added": "={{ $('Get First Job').item.json['Date Added'] }}",
+            "Date Processed": "={{ DateTime.now().toFormat('yyyy-MM-dd') }}",
+            "Title": "={{ $('Get First Job').item.json.Title }}",
+            "Company": "={{ $('Get First Job').item.json.Company }}",
+            "URL": "={{ $('Get First Job').item.json.URL }}",
+            "Resume URL": "={{ $('Prepare Chat Message').item.json.documentUrl }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date Added",
+              "displayName": "Date Added",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Processed",
+              "displayName": "Date Processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Resume URL",
+              "displayName": "Resume URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2320, 300],
+      "id": "add-to-processed-1",
+      "name": "Add to Processed Jobs",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Parse Claude Response').item.json.documentId }}",
+          "mode": "id"
+        },
+        "options": {
+          "deletePermanently": true
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2080, 500],
+      "id": "delete-draft-doc-1",
+      "name": "Delete Draft Doc",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "1S5i0OIJxXrMBAziWqiSiy3lyAwgzh_aKlydnrciwUuQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Relevant Roles",
+          "mode": "name"
+        },
+        "filters": {
+          "values": [
+            {
+              "lookupColumn": "URL",
+              "lookupValue": "={{ $('Get First Job').item.json.URL }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2320, 500],
+      "id": "delete-from-relevant-rejected-1",
+      "name": "Delete from Relevant (Rejected)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1S5i0OIJxXrMBAziWqiSiy3lyAwgzh_aKlydnrciwUuQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Skipped Jobs",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date Added": "={{ $('Get First Job').item.json['Date Added'] }}",
+            "Date Skipped": "={{ DateTime.now().toFormat('yyyy-MM-dd') }}",
+            "Title": "={{ $('Get First Job').item.json.Title }}",
+            "Company": "={{ $('Get First Job').item.json.Company }}",
+            "URL": "={{ $('Get First Job').item.json.URL }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date Added",
+              "displayName": "Date Added",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Skipped",
+              "displayName": "Date Skipped",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2560, 500],
+      "id": "add-to-skipped-1",
+      "name": "Add to Skipped Jobs",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "lfejI7lxOGlP5VNs",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [-320, 600],
+      "id": "no-jobs-end-1",
+      "name": "No Jobs - End"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get First Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get First Job": {
+      "main": [
+        [
+          {
+            "node": "Has Job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Job?": {
+      "main": [
+        [
+          {
+            "node": "Get Master Resume",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Prompt Instructions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Copy Resume Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Jobs - End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Master Resume": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Prompt Instructions": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Copy Resume Template": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge All Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Claude Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Claude Input": {
+      "main": [
+        [
+          {
+            "node": "Generate Resume Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Sonnet": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Resume Content",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Resume Content": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Update Doc (Replace Placeholders)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Doc (Replace Placeholders)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Chat Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Chat Message": {
+      "main": [
+        [
+          {
+            "node": "Send Review Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Review Request": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Delete from Relevant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete Draft Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete from Relevant": {
+      "main": [
+        [
+          {
+            "node": "Add to Processed Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Draft Doc": {
+      "main": [
+        [
+          {
+            "node": "Delete from Relevant (Rejected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete from Relevant (Rejected)": {
+      "main": [
+        [
+          {
+            "node": "Add to Skipped Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "",
+  "tags": []
+}
