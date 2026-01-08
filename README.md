@@ -1,4 +1,4 @@
-# Draft Resume Generator - Batch
+# Draft Resume Builder - Batch
 
 An n8n workflow that automatically generates tailored resumes from job listings using Claude AI.
 
