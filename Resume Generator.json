@@ -1,89 +1,6 @@
 {
-  "name": "Resume Generator",
+  "name": "Draft Resume Generator - Batch",
   "nodes": [
-    {
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1S5i0OIJxXrMBAziWqiSiy3lyAwgzh_aKlydnrciwUuQ",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1098856778,
-          "mode": "list",
-          "cachedResultName": "Processed Jobs",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S5i0OIJxXrMBAziWqiSiy3lyAwgzh_aKlydnrciwUuQ/edit#gid=1098856778"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Date Processed ": "={{ DateTime.now().toFormat('yyyy-MM-dd') }}",
-            "Title": "={{ $('Get First Job').first().json.Title }}",
-            "Company": "={{ $('Get First Job').first().json.Company }}",
-            "URL": "={{ $('Get First Job').first().json.URL }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "Date Processed ",
-              "displayName": "Date Processed ",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Title",
-              "displayName": "Title",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Company",
-              "displayName": "Company",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "URL",
-              "displayName": "URL",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        1936,
-        144
-      ],
-      "id": "9fe8e7db-2133-4969-b74e-a0fc8278197c",
-      "name": "Add to Processed Jobs",
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "lfejI7lxOGlP5VNs",
-          "name": "Google Sheets account"
-        }
-      },
-      "disabled": true
-    },
     {
       "parameters": {},
       "type": "n8n-nodes-base.manualTrigger",
@@ -278,33 +195,6 @@
     },
     {
       "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "claude-sonnet-4-5-20250929",
-          "cachedResultName": "Claude Sonnet 4.5"
-        },
-        "options": {
-          "maxTokensToSample": 4096
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.3,
-      "position": [
-        1808,
-        944
-      ],
-      "id": "68961219-359a-4597-b2c3-acf2514c344a",
-      "name": "Claude Sonnet",
-      "credentials": {
-        "anthropicApi": {
-          "id": "1dEHV2ZcyiXT2OLc",
-          "name": "Anthropic account"
-        }
-      }
-    },
-    {
-      "parameters": {
         "jsCode": "// Parse Claude's JSON response and prepare for Google Docs replacement\nconst input = $('Prepare Claude Input').item.json;\nconst claudeResponse = $json.text || $json.response || '';\n\n// Extract JSON from Claude's response\nlet content;\ntry {\n  // Try to parse directly\n  content = JSON.parse(claudeResponse);\n} catch (e) {\n  // Try to extract JSON from markdown code block\n  const jsonMatch = claudeResponse.match(/```json\\n?([\\s\\S]*?)\\n?```/) || \n                    claudeResponse.match(/```\\n?([\\s\\S]*?)\\n?```/) ||\n                    claudeResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    content = JSON.parse(jsonMatch[1] || jsonMatch[0]);\n  } else {\n    throw new Error('Could not parse JSON from Claude response');\n  }\n}\n\n// Build the replacement requests for Google Docs API\nconst replacements = [];\nconst placeholders = [\n  'TAGLINE_1', 'TAGLINE_2', 'TAGLINE_3', 'ABOUT_ME',\n  'SHOPIFY_BULLET_1', 'SHOPIFY_BULLET_2',\n  'NEO4J_BULLET_1', 'NEO4J_BULLET_2', 'NEO4J_BULLET_3', 'NEO4J_BULLET_4', 'NEO4J_BULLET_5',\n  'FIVETRAN_BULLET_1', 'FIVETRAN_BULLET_2', 'FIVETRAN_BULLET_3', 'FIVETRAN_BULLET_4', 'FIVETRAN_BULLET_5',\n  'DENTSU_BULLET_1', 'DENTSU_BULLET_2', 'DENTSU_BULLET_3',\n  'TEXT100_BULLET_1', 'TEXT100_BULLET_2', 'TEXT100_BULLET_3',\n  'REPUBLIC_BULLET_1', 'REPUBLIC_BULLET_2',\n  'COMPETENCY_1', 'COMPETENCY_2', 'COMPETENCY_3', 'COMPETENCY_4', 'COMPETENCY_5',\n  'COMPETENCY_6', 'COMPETENCY_7', 'COMPETENCY_8', 'COMPETENCY_9', 'COMPETENCY_10'\n];\n\nfor (const key of placeholders) {\n  if (content[key]) {\n    replacements.push({\n      replaceAllText: {\n        containsText: {\n          text: '{{' + key + '}}',\n          matchCase: true\n        },\n        replaceText: content[key]\n      }\n    });\n  }\n}\n\nreturn [{\n  json: {\n    documentId: input.copiedDocId,\n    documentName: input.copiedDocName,\n    documentUrl: `https://docs.google.com/document/d/${input.copiedDocId}/edit`,\n    job: input.job,\n    generatedContent: content,\n    requests: replacements\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
@@ -466,11 +356,36 @@
         704
       ],
       "id": "e0a8fa9a-361f-4859-8515-75b924b5fdf5",
-      "name": "Add to Processed Jobs1",
+      "name": "Add to Processed Jobs",
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "lfejI7lxOGlP5VNs",
           "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-opus-4-5-20251101",
+          "mode": "list",
+          "cachedResultName": "Claude Opus 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1808,
+        944
+      ],
+      "id": "68961219-359a-4597-b2c3-acf2514c344a",
+      "name": "Claude Opus",
+      "credentials": {
+        "anthropicApi": {
+          "id": "1dEHV2ZcyiXT2OLc",
+          "name": "Anthropic account"
         }
       }
     }
@@ -561,17 +476,6 @@
         ]
       ]
     },
-    "Claude Sonnet": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Generate Resume Content",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Generate Resume Content": {
       "main": [
         [
@@ -609,8 +513,19 @@
       "main": [
         [
           {
-            "node": "Add to Processed Jobs1",
+            "node": "Add to Processed Jobs",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Opus": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Resume Content",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -621,7 +536,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "132c4683-6683-4b96-8e8e-7607785cfdbd",
+  "versionId": "083035f1-79dc-4703-964f-9fd3241e3f2b",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ecc95ab4f625c8c725babf7141f5b1a896826030e71edeeca401eba5a79da7d5"
